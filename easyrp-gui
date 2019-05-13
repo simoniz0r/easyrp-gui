@@ -1,0 +1,175 @@
+#!/bin/bash
+# Title: easyrp-gui
+# Author: simonizor
+# License: MIT
+# Dependencies: curl, yad
+# Description: A GUI for controlling EasyRP (https://github.com/Pizzabelly/EasyRP)
+
+# function to create directory and download EasyRP if does not exist
+geteasyrp() {
+    if [[ ! -d "$HOME/.local/share/easyrp-gui" || ! -f "$HOME/.local/share/easyrp-gui/easyrp" ]]; then
+        yad --title="easyrp-gui" --info --borders=20 --center --text="EasyRP not found in '$HOME/.local/share/easyrp-gui'.\nDownloading now."
+        case $? in
+            0)
+                mkdir -p "$HOME"/.local/share/easyrp-gui
+                mkdir -p "$HOME"/.cache
+                curl -sL "https://github.com/Pizzabelly/EasyRP/releases/download/v3.0/EasyRP-v3.0-linux.tar.gz" -o "$HOME"/.cache/EasyRP-linux.tar.gz
+                cd "$HOME"/.local/share/easyrp-gui
+                if [[ -f "$HOME/.cache/EasyRP-linux.tar.gz" ]]; then
+                    tar xzf "$HOME"/.cache/EasyRP-linux.tar.gz
+                else
+                    rm -rf "$HOME"/.local/share/easyrp-gui
+                    yad --title="easyrp-gui" --error --button=gtk-ok:0 --borders=20 --center --text="Failed to download EasyRP!"
+                    exit 1
+                fi
+                if [[ -d "$HOME/.local/share/easyrp-gui/EasyRP-v3.0-linux" ]]; then
+                    mv "$HOME"/.local/share/easyrp-gui/EasyRP-v3.0-linux/* "$HOME"/.local/share/easyrp-gui/
+                else
+                    rm -rf "$HOME"/.local/share/easyrp-gui
+                    rm -f "$HOME"/.cache/EasyRP-linux.tar.gz
+                    yad --title="easyrp-gui" --error --button=gtk-ok:0 --borders=20 --center --text="Failed to extract EasyRP!"
+                    exit 1
+                fi
+                rm -rf "$HOME"/.local/share/easyrp-gui/EasyRP-v3.0-linux
+                rm -f "$HOME"/.cache/EasyRP-linux.tar.gz
+                if [[ -f "$HOME/.local/share/easyrp-gui/easyrp" ]]; then
+                    chmod +x "$HOME"/.local/share/easyrp-gui/easyrp
+                else
+                    rm -rf "$HOME"/.local/share/easyrp-gui
+                    yad --title="easyrp-gui" --error --button=gtk-ok:0 --borders=20 --center --text="Failed to find EasyRB binary!"
+                    exit 1
+                fi
+                ;;
+            *)
+                rm -rf "$HOME"/.local/share/easyrp-gui
+                yad --title="easyrp-gui" --error --button=gtk-ok:0 --borders=20 --center --text="EasyRP was not downloaded!"
+                exit 1
+                ;;
+        esac
+    fi
+}
+# function to write config file
+writeconfig() {
+cat > "$HOME"/.local/share/easyrp-gui/config.ini << EOL
+[Identifiers]
+ClientID=$NewClientID
+
+[State]
+State=$(echo "$State​​" | awk '{gsub(/\\ /," ")}1' | cut -f-3 -d'​')
+Details=$(echo "$Details​​" | awk '{gsub(/\\ /," ")}1' | cut -f-3 -d'​')
+StartTimestamp=$(date +%s)
+EndTimestamp=
+
+[Images]
+LargeImage=$LargeImage
+LargeImageTooltip=$(echo "$LargeImageTooltip" | awk '{gsub(/\\ /," ")}1' | cut -f-3 -d'​')
+SmallImage=$SmallImage
+SmallImageTooltip=$(echo "$SmallImageTooltip" | awk '{gsub(/\\ /," ")}1' | cut -f-3 -d'​')
+EOL
+    if [[ -f "$HOME/.local/share/easyrp-gui/storedvars.conf" ]]; then
+        source "$HOME"/.local/share/easyrp-gui/storedvars.conf
+        if ! echo "$ERP_CLIENTIDS" | tr '!' '\n' | grep -wq "$NewClientID"; then
+            echo "ERP_CLIENTIDS=\"$ERP_CLIENTIDS!$NewClientID\"" > "$HOME"/.local/share/easyrp-gui/storedvars.conf
+        else
+            echo "ERP_CLIENTIDS=\"$ERP_CLIENTIDS\"" > "$HOME"/.local/share/easyrp-gui/storedvars.conf
+        fi
+        if ! echo "$ERP_STATES" | tr '!' '\n' | grep -wq "$State"; then
+            echo "ERP_STATES=\"$ERP_STATES!$State\"" >> "$HOME"/.local/share/easyrp-gui/storedvars.conf
+        else
+            echo "ERP_STATES=\"$ERP_STATES\"" >> "$HOME"/.local/share/easyrp-gui/storedvars.conf
+        fi
+        if ! echo "$ERP_DETAILS" | tr '!' '\n' | grep -wq "$Details"; then
+            echo "ERP_DETAILS=\"$ERP_DETAILS!$Details\"" >> "$HOME"/.local/share/easyrp-gui/storedvars.conf
+        else
+            echo "ERP_DETAILS=\"$ERP_DETAILS\"" >> "$HOME"/.local/share/easyrp-gui/storedvars.conf
+        fi
+        if ! echo "$ERP_LIMGS" | tr '!' '\n' | grep -wq "$LargeImage"; then
+            echo "ERP_LIMGS=\"$ERP_LIMGS!$LargeImage\"" >> "$HOME"/.local/share/easyrp-gui/storedvars.conf
+        else
+            echo "ERP_LIMGS=\"$ERP_LIMGS\"" >> "$HOME"/.local/share/easyrp-gui/storedvars.conf
+        fi
+        if ! echo "$ERP_LIMGTIPS" | tr '!' '\n' | grep -wq "$LargeImageTooltip"; then
+            echo "ERP_LIMGTIPS=\"$ERP_LIMGTIPS!$LargeImageTooltip\"" >> "$HOME"/.local/share/easyrp-gui/storedvars.conf
+        else
+            echo "ERP_LIMGTIPS=\"$ERP_LIMGTIPS\"" >> "$HOME"/.local/share/easyrp-gui/storedvars.conf
+        fi
+        if ! echo "$ERP_SIMGS" | tr '!' '\n' | grep -wq "$SmallImage"; then
+            echo "ERP_SIMGS=\"$ERP_SIMGS!$SmallImage\"" >> "$HOME"/.local/share/easyrp-gui/storedvars.conf
+        else
+            echo "ERP_SIMGS=\"$ERP_SIMGS\"" >> "$HOME"/.local/share/easyrp-gui/storedvars.conf
+        fi
+        if ! echo "$ERP_SIMGTIPS" | tr '!' '\n' | grep -wq "$SmallImageTooltip"; then
+            echo "ERP_SIMGTIPS=\"$ERP_SIMGTIPS!$SmallImageTooltip\"" >> "$HOME"/.local/share/easyrp-gui/storedvars.conf
+        else
+            echo "ERP_SIMGTIPS=\"$ERP_SIMGTIPS\"" >> "$HOME"/.local/share/easyrp-gui/storedvars.conf
+        fi
+    else
+        echo "ERP_CLIENTIDS=\"$NewClientID\"" > "$HOME"/.local/share/easyrp-gui/storedvars.conf
+        echo "ERP_STATES=\"$State\"" >> "$HOME"/.local/share/easyrp-gui/storedvars.conf
+        echo "ERP_DETAILS=\"$Details\"" >> "$HOME"/.local/share/easyrp-gui/storedvars.conf
+        echo "ERP_LIMGS=\"$LargeImage\"" >> "$HOME"/.local/share/easyrp-gui/storedvars.conf
+        echo "ERP_LIMGTIPS=\"$LargeImageTooltip\"" >> "$HOME"/.local/share/easyrp-gui/storedvars.conf
+        echo "ERP_SIMGS=\"$SmallImage\"" >> "$HOME"/.local/share/easyrp-gui/storedvars.conf
+        echo "ERP_SIMGTIPS=\"$SmallImageTooltip\"" >> "$HOME"/.local/share/easyrp-gui/storedvars.conf
+    fi
+    
+}
+# function to parse config file
+parseconfig() {
+    unset ClientID State Details StartTimestamp EndTimestamp LargeImage LargeImageTooltip SmallImage SmallImageTooltip
+    cat "$HOME"/.local/share/easyrp-gui/config.ini | grep -v '^;.*\|^\[.*' | awk '{gsub(/\s/,"\\ ")}1' > "$HOME"/.local/share/easyrp-gui/config.sh
+    source "$HOME"/.local/share/easyrp-gui/config.sh
+}
+
+# startup
+geteasyrp
+parseconfig
+if [[ -f "$HOME/.local/share/easyrp-gui/storedvars.conf" ]]; then
+    source "$HOME"/.local/share/easyrp-gui/storedvars.conf
+fi
+EASYRP_OPTIONS="$(yad --form \
+--center \
+--title='easyrp-gui' \
+--borders=20 \
+--width=400 \
+--window-icon=discord \
+--buttons-layout=center \
+--button="Stop and Exit":1 \
+--button="Save and Start":0 \
+--escape-ok \
+--text='Set Discord RPC status.\
+* = Optional \
+If you do not have a Client ID, create one here:\
+https://discordapp.com/developers/applications\n' \
+--field='Client ID':CE "^$ClientID!${ERP_CLIENTIDS}" \
+--field='RPC Status':CE "^$State!${ERP_STATES}" \
+--field='RPC Details':CE "^$Details!${ERP_DETAILS}" \
+--field='Large Image*':CE "^$LargeImage!${ERP_LIMGS}" \
+--field='Large Image Tooltip*':CE "^$LargeImageTooltip!${ERP_LIMGTIPS}" \
+--field='Small Image*':CE "^$SmallImage!${ERP_SIMGS}" \
+--field='Small Image Tooltip*':CE "^$SmallImageTooltip!${ERP_SIMGTIPS}")"
+NewClientID="$(echo $EASYRP_OPTIONS | cut -f1 -d'|' | cut -f2- -d'^')"
+State="$(echo $EASYRP_OPTIONS | cut -f2 -d'|' | cut -f2- -d'^')"
+Details="$(echo $EASYRP_OPTIONS | cut -f3 -d'|' | cut -f2- -d'^')"
+LargeImage="$(echo $EASYRP_OPTIONS | cut -f4 -d'|' | cut -f2- -d'^')"
+LargeImageTooltip="$(echo $EASYRP_OPTIONS | cut -f5 -d'|' | cut -f2- -d'^')"
+SmallImage="$(echo $EASYRP_OPTIONS | cut -f6 -d'|' | cut -f2- -d'^')"
+SmallImageTooltip="$(echo $EASYRP_OPTIONS | cut -f7 -d'|' | cut -f2- -d'^')"
+# if form was filled out, write config and start easyrp if not running
+if [[ ! -z "$NewClientID" ]]; then
+    rm -f "$HOME"/.local/share/easyrp-gui/nohup.out
+    writeconfig
+    cd "$HOME"/.local/share/easyrp-gui
+    if ! ps aux | grep '\./easyrp' | grep -vq grep; then
+        LD_LINUX_LOC="$(ldd ~/.local/share/easyrp-gui/easyrp | grep 'ld-linux' | awk '{print $3}')"
+        case "$LD_LINUX_LOC" in
+            /*) $LD_LINUX_LOC ./easyrp >& ./nohup.out & disown;;
+            *) ./easyrp >& ./nohup.out & disown;;
+        esac
+        echo "ERP_PID=$!" > /tmp/.erppid8675309.conf
+    fi
+elif [[ -f "/tmp/.erppid8675309.conf" ]]; then
+    source /tmp/.erppid8675309.conf
+    kill $ERP_PID || true
+    rm -f /tmp/.erppid8675309.conf
+fi
