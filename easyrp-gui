@@ -114,62 +114,99 @@ EOL
     fi
     
 }
+export -f writeconfig
 # function to parse config file
 parseconfig() {
     unset ClientID State Details StartTimestamp EndTimestamp LargeImage LargeImageTooltip SmallImage SmallImageTooltip
     cat "$HOME"/.local/share/easyrp-gui/config.ini | grep -v '^;.*\|^\[.*' | awk '{gsub(/\s/,"\\ ")}1' > "$HOME"/.local/share/easyrp-gui/config.sh
     source "$HOME"/.local/share/easyrp-gui/config.sh
 }
+export -f parseconfig
+# main window function
+easyrp.main() {
+    parseconfig
+    if [[ -f "/tmp/.erppid8675309.conf" ]]; then
+        ERP_START_TEXT="Save and Update"
+    else
+        ERP_START_TEXT="Save and Start"
+    fi
+    if [[ -f "$HOME/.local/share/easyrp-gui/storedvars.conf" ]]; then
+        source "$HOME"/.local/share/easyrp-gui/storedvars.conf
+    fi
+    EASYRP_OPTIONS="$(yad --form \
+    --center \
+    --title='easyrp-gui' \
+    --borders=20 \
+    --width=400 \
+    --window-icon=discord \
+    --buttons-layout=center \
+    --button="Cancel":1 \
+    --button="$ERP_START_TEXT":0 \
+    --escape-ok \
+    --text='Set Discord RPC status.\n* = Required\nIf you do not have a Client ID, create one here:\nhttps://discordapp.com/developers/applications\n' \
+    --field='Client ID*':CE "^$ClientID!${ERP_CLIENTIDS}" \
+    --field='RPC Status':CE "^$State!${ERP_STATES}" \
+    --field='RPC Details':CE "^$Details!${ERP_DETAILS}" \
+    --field='Large Image':CE "^$LargeImage!${ERP_LIMGS}" \
+    --field='Large Image Tooltip':CE "^$LargeImageTooltip!${ERP_LIMGTIPS}" \
+    --field='Small Image':CE "^$SmallImage!${ERP_SIMGS}" \
+    --field='Small Image Tooltip':CE "^$SmallImageTooltip!${ERP_SIMGTIPS}")"
+    NewClientID="$(echo $EASYRP_OPTIONS | cut -f1 -d'|' | cut -f2- -d'^')"
+    State="$(echo $EASYRP_OPTIONS | cut -f2 -d'|' | cut -f2- -d'^')"
+    Details="$(echo $EASYRP_OPTIONS | cut -f3 -d'|' | cut -f2- -d'^')"
+    LargeImage="$(echo $EASYRP_OPTIONS | cut -f4 -d'|' | cut -f2- -d'^')"
+    LargeImageTooltip="$(echo $EASYRP_OPTIONS | cut -f5 -d'|' | cut -f2- -d'^')"
+    SmallImage="$(echo $EASYRP_OPTIONS | cut -f6 -d'|' | cut -f2- -d'^')"
+    SmallImageTooltip="$(echo $EASYRP_OPTIONS | cut -f7 -d'|' | cut -f2- -d'^')"
+    # if form was filled out, write config and start easyrp if not running
+    if [[ ! -z "$NewClientID" ]]; then
+        rm -f "$HOME"/.local/share/easyrp-gui/nohup.out
+        writeconfig
+        cd "$HOME"/.local/share/easyrp-gui
+        if [[ ! -f "/tmp/.erppid8675309.conf" ]]; then
+            LD_LINUX_LOC="$(ldd ~/.local/share/easyrp-gui/easyrp | grep 'ld-linux' | awk '{print $3}')"
+            case "$LD_LINUX_LOC" in
+                /*) $LD_LINUX_LOC ./easyrp >& ./nohup.out &;;
+                *) ./easyrp >& ./nohup.out &;;
+            esac
+            case $? in
+                0) 
+                    disown
+                    echo "ERP_PID=$!" > /tmp/.erppid8675309.conf
+                    easyrp.tray & disown
+                    ;;
+                *) 
+                    yad --info \
+                    --center \
+                    --title='easyrp-gui' \
+                    --borders=20 \
+                    --width=300 \
+                    --window-icon=discord \
+                    --text="Failed to start EasyRP!" \
+                    --button=gtk-ok:0
+                    ;;
+            esac
+        fi
+    # elif [[ -f "/tmp/.erppid8675309.conf" ]]; then
+    #     source /tmp/.erppid8675309.conf
+    #     kill $ERP_PID || true
+    #     rm -f /tmp/.erppid8675309.conf
+    fi
+}
+export -f easyrp.main
+# create tray icon
+easyrp.tray() {
+    yad --notification \
+    --image="discord" \
+    --text="EasyRP GUI" \
+    --command="bash -c 'easyrp.main'"
+    if [[ -f "/tmp/.erppid8675309.conf" ]]; then
+        source /tmp/.erppid8675309.conf
+        kill $ERP_PID || true
+        rm -f /tmp/.erppid8675309.conf
+    fi
+}
 
 # startup
 geteasyrp
-parseconfig
-if [[ -f "$HOME/.local/share/easyrp-gui/storedvars.conf" ]]; then
-    source "$HOME"/.local/share/easyrp-gui/storedvars.conf
-fi
-EASYRP_OPTIONS="$(yad --form \
---center \
---title='easyrp-gui' \
---borders=20 \
---width=400 \
---window-icon=discord \
---buttons-layout=center \
---button="Stop and Exit":1 \
---button="Save and Start":0 \
---escape-ok \
---text='Set Discord RPC status.\
-* = Optional \
-If you do not have a Client ID, create one here:\
-https://discordapp.com/developers/applications\n' \
---field='Client ID':CE "^$ClientID!${ERP_CLIENTIDS}" \
---field='RPC Status':CE "^$State!${ERP_STATES}" \
---field='RPC Details':CE "^$Details!${ERP_DETAILS}" \
---field='Large Image*':CE "^$LargeImage!${ERP_LIMGS}" \
---field='Large Image Tooltip*':CE "^$LargeImageTooltip!${ERP_LIMGTIPS}" \
---field='Small Image*':CE "^$SmallImage!${ERP_SIMGS}" \
---field='Small Image Tooltip*':CE "^$SmallImageTooltip!${ERP_SIMGTIPS}")"
-NewClientID="$(echo $EASYRP_OPTIONS | cut -f1 -d'|' | cut -f2- -d'^')"
-State="$(echo $EASYRP_OPTIONS | cut -f2 -d'|' | cut -f2- -d'^')"
-Details="$(echo $EASYRP_OPTIONS | cut -f3 -d'|' | cut -f2- -d'^')"
-LargeImage="$(echo $EASYRP_OPTIONS | cut -f4 -d'|' | cut -f2- -d'^')"
-LargeImageTooltip="$(echo $EASYRP_OPTIONS | cut -f5 -d'|' | cut -f2- -d'^')"
-SmallImage="$(echo $EASYRP_OPTIONS | cut -f6 -d'|' | cut -f2- -d'^')"
-SmallImageTooltip="$(echo $EASYRP_OPTIONS | cut -f7 -d'|' | cut -f2- -d'^')"
-# if form was filled out, write config and start easyrp if not running
-if [[ ! -z "$NewClientID" ]]; then
-    rm -f "$HOME"/.local/share/easyrp-gui/nohup.out
-    writeconfig
-    cd "$HOME"/.local/share/easyrp-gui
-    if ! ps aux | grep '\./easyrp' | grep -vq grep; then
-        LD_LINUX_LOC="$(ldd ~/.local/share/easyrp-gui/easyrp | grep 'ld-linux' | awk '{print $3}')"
-        case "$LD_LINUX_LOC" in
-            /*) $LD_LINUX_LOC ./easyrp >& ./nohup.out & disown;;
-            *) ./easyrp >& ./nohup.out & disown;;
-        esac
-        echo "ERP_PID=$!" > /tmp/.erppid8675309.conf
-    fi
-elif [[ -f "/tmp/.erppid8675309.conf" ]]; then
-    source /tmp/.erppid8675309.conf
-    kill $ERP_PID || true
-    rm -f /tmp/.erppid8675309.conf
-fi
+easyrp.main
